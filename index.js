@@ -11,47 +11,58 @@ program
 
 const { host, port, cache } = program.opts();
 
+const handleError = (res, error) => {
+    if (error.code === 'ENOENT') {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Image not found');
+    } else {
+        console.error(error);
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('Internal Server Error');
+    }
+};
+
 const server = http.createServer(async (req, res) => {
     const statusCode = req.url.slice(1); 
     const filePath = path.join(cache, `${statusCode}.jpg`);
 
-    if (req.method === 'GET') {
-        try {
-            const imageData = await fs.readFile(filePath);
-            res.writeHead(200, { 'Content-Type': 'image/jpeg' });
-            res.end(imageData);
-        } catch (error) {
-            if (error.code === 'ENOENT') {
-                res.writeHead(404, { 'Content-Type': 'text/plain' });
-                res.end('Image not found');
-            } else {
-                console.error(error);
-                res.writeHead(500, { 'Content-Type': 'text/plain' });
-                res.end('Internal Server Error');
-            }
-        }
-    } else if (req.method === 'PUT') {
-        let data = [];
-
-        req.on('data', chunk => {
-            data.push(chunk);
-        });
-
-        req.on('end', async () => {
+    switch (req.method) {
+        case 'GET':
             try {
-                const imageData = Buffer.concat(data);
-                await fs.writeFile(filePath, imageData);
-                res.writeHead(201, { 'Content-Type': 'text/plain' });
-                res.end('Image created successfully'); 
+                const imageData = await fs.readFile(filePath);
+                res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+                res.end(imageData);
             } catch (error) {
-                console.error(error);
-                res.writeHead(500, { 'Content-Type': 'text/plain' });
-                res.end('Internal Server Error');
+                handleError(res, error);
             }
-        });
-    } else {
-        res.writeHead(405, { 'Content-Type': 'text/plain' });
-        res.end('Method Not Allowed');
+            break;
+        case 'PUT':
+            let data = [];
+            req.on('data', chunk => data.push(chunk));
+            req.on('end', async () => {
+                try {
+                    const imageData = Buffer.concat(data);
+                    await fs.writeFile(filePath, imageData);
+                    res.writeHead(201, { 'Content-Type': 'text/plain' });
+                    res.end('Image created successfully');
+                } catch (error) {
+                    handleError(res, error);
+                }
+            });
+            break;
+        case 'DELETE':
+            try {
+                await fs.unlink(filePath);
+                res.writeHead(200, { 'Content-Type': 'text/plain' });
+                res.end('Image deleted successfully');
+            } catch (error) {
+                handleError(res, error);
+            }
+            break;
+        default:
+            res.writeHead(405, { 'Content-Type': 'text/plain' });
+            res.end('Method Not Allowed');
+            break;
     }
 });
 
