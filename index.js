@@ -1,34 +1,37 @@
 const { program } = require('commander');
 const http = require('http');
+const fs = require('fs').promises;
+const path = require('path');
 
 program
     .requiredOption('-h, --host <char>', 'server address')
     .requiredOption('-p, --port <int>', 'server port')
-    .requiredOption('-c, --cache <char>', 'path to directory, where cache files will be stored');
+    .requiredOption('-c, --cache <char>', 'path to directory where cache files are stored')
+    .parse(process.argv);
 
-program.parse(process.argv); 
-const options = program.opts();
+const { host, port, cache } = program.opts();
 
+const server = http.createServer(async (req, res) => {
+    const statusCode = req.url.slice(1); 
+    const filePath = path.join(cache, `${statusCode}.jpg`);
 
-if (!options.host) {
-    console.error('Please enter server address');
-    process.exit(1);
-}
-if (!options.port) {
-    console.error('Please enter server port');
-    process.exit(1);
-}
-if (!options.cache) {
-    console.error('Please enter path to cache files');
-    process.exit(1);
-}
-
-
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Server is running!');
+    if (req.method === 'GET') {
+        try {
+            const imageData = await fs.readFile(filePath);
+            res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+            res.end(imageData);
+        } catch (error) {
+            const status = error.code === 'ENOENT' ? 404 : 500;
+            res.writeHead(status, { 'Content-Type': 'text/plain' });
+            res.end(status === 404 ? 'Image not found' : 'Internal Server Error');
+        }
+    } else {
+        res.writeHead(405, { 'Content-Type': 'text/plain' });
+        res.end('Method Not Allowed');
+    }
 });
 
-server.listen(options.port, options.host, () => {
-    console.log(`Server working on http://${options.host}:${options.port}`);
+server.listen(port, host, () => {
+    console.log(`Server running at http://${host}:${port}`);
 });
+
