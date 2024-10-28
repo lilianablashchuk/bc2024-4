@@ -21,10 +21,34 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(200, { 'Content-Type': 'image/jpeg' });
             res.end(imageData);
         } catch (error) {
-            const status = error.code === 'ENOENT' ? 404 : 500;
-            res.writeHead(status, { 'Content-Type': 'text/plain' });
-            res.end(status === 404 ? 'Image not found' : 'Internal Server Error');
+            if (error.code === 'ENOENT') {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('Image not found');
+            } else {
+                console.error(error);
+                res.writeHead(500, { 'Content-Type': 'text/plain' });
+                res.end('Internal Server Error');
+            }
         }
+    } else if (req.method === 'PUT') {
+        let data = [];
+
+        req.on('data', chunk => {
+            data.push(chunk);
+        });
+
+        req.on('end', async () => {
+            try {
+                const imageData = Buffer.concat(data);
+                await fs.writeFile(filePath, imageData);
+                res.writeHead(201, { 'Content-Type': 'text/plain' });
+                res.end('Image created successfully'); 
+            } catch (error) {
+                console.error(error);
+                res.writeHead(500, { 'Content-Type': 'text/plain' });
+                res.end('Internal Server Error');
+            }
+        });
     } else {
         res.writeHead(405, { 'Content-Type': 'text/plain' });
         res.end('Method Not Allowed');
@@ -34,4 +58,3 @@ const server = http.createServer(async (req, res) => {
 server.listen(port, host, () => {
     console.log(`Server running at http://${host}:${port}`);
 });
-
