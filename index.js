@@ -2,6 +2,7 @@ const { program } = require('commander');
 const http = require('http');
 const fs = require('fs').promises;
 const path = require('path');
+const superagent = require('superagent');
 
 program
     .requiredOption('-h, --host <char>', 'server address')
@@ -33,7 +34,14 @@ const server = http.createServer(async (req, res) => {
                 res.writeHead(200, { 'Content-Type': 'image/jpeg' });
                 res.end(imageData);
             } catch (error) {
-                handleError(res, error);
+                try {
+                    const response = await superagent.get(`https://http.cat/${statusCode}`);
+                    await fs.writeFile(filePath, response.body); 
+                    res.writeHead(200, { 'Content-Type': 'image/jpeg' });
+                    res.end(response.body);
+                } catch (error) {
+                    handleError(res, error);
+                }
             }
             break;
         case 'PUT':
